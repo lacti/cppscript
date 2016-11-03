@@ -1,0 +1,96 @@
+#!/bin/bash
+
+DIR=$(dirname $(readlink -f "$0"))
+
+usage() {
+    echo "Usage: $0 [-s] [-g] script-file"
+    echo "    -s make a source file"
+    echo "    -g build a debuggable binary file"
+    echo "    -t test a build"
+    echo "    -c clear all of build caches"
+    exit 0
+}
+
+while getopts "sgtc" option; do
+    case $option in
+        s) MAKE_A_SOURCE=1 ;;
+        g) MAKE_A_DEBUG_BUILD=1 ;;
+        t) TEST_BUILD=1 ;;
+        c) CLEAR_BUILD_CACHE=1 ;;
+        *) usage ;;
+    esac
+done
+shift $((${OPTIND} - 1))
+
+# prepare bin cache dir or delete old caches
+BINCACHE="/tmp/cppscript-bincache"
+mkdir -p "${BINCACHE}"
+
+if [ ${CLEAR_BUILD_CACHE} ]; then
+    rm -f ${BINCACHE}/*
+    echo "clear all of build caches."
+    exit
+fi
+
+pushd "${BINCACHE}" > /dev/null
+ls -tp | grep -v '/$' | tail -n+10 | xargs -d '\n' rm -f --
+popd > /dev/null
+
+# check the target parameter
+[ "$#" -lt 1 ] && usage
+TARGET="$1"
+
+# generate a source file
+SRC=$(mktemp --suffix=.cc)
+echo '#include <iostream>
+#include <string>
+#include <cstdlib>
+#include <algorithm>
+#include <functional>
+#include <vector>
+#include <unordered_map>
+#include <unordered_set>' > "${SRC}"
+grep '^#include' "${TARGET}" >> "${SRC}"
+if [[ -n "$(grep 'main(' "${TARGET}")" ]]; then
+    tail -n+2 "${TARGET}" | grep -v '^#include' >> "${SRC}"
+else
+    echo 'int main(int argc, char* argv[]) {' >> "${SRC}"
+    tail -n+2 "${TARGET}" | grep -v '^#include' >> "${SRC}"
+    echo 'return 0;}' >> "${SRC}"
+fi
+
+if [ ${MAKE_A_SOURCE} ]; then
+    cat "${SRC}"
+    rm -f "${SRC}"
+    exit
+fi
+
+# build a new one or use the cache one
+CC="g++"
+CCFLAGS="-std=c++1y -I ${DIR} -I ${DIR}/include -I ."
+if [ ${MAKE_A_DEBUG_BUILD} ]; then
+    # build a build for debugging
+    OUT="${TARGET}.build"
+    ${CC} ${CCFLAGS} -g "${SRC}" -o "${OUT}"
+
+elif [ ${TEST_BUILD} ]; then
+    # only test a build to check compilable or not
+    OUT="${TARGET}.test.build"
+    echo "${CC} ${CCFLAGS} \"${SRC}\" -o \"${OUT}\""
+    ${CC} ${CCFLAGS} "${SRC}" -o "${OUT}"
+    rm -f "${OUT}"
+
+else
+    # build a binary and execute it
+    MD5=$(cat "${SRC}" | md5sum -b | awk '{print $1}')
+    OUT="${BINCACHE}/${MD5}"
+    [ ! -x "${OUT}" ] && ${CC} ${CCFLAGS} -O3 "${SRC}" -o "${OUT}"
+    rm -f ${SRC}
+
+    # execute the binary
+    if [ -x "${OUT}" ]; then
+        shift
+        ${OUT} $@
+    fi
+fi
+
