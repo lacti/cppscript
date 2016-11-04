@@ -3,7 +3,7 @@
 DIR=$(dirname $(readlink -f "$0"))
 
 usage() {
-    echo "Usage: $0 [-s] [-g] script-file"
+    echo "Usage: $0 [-sgtc] script-file"
     echo "    -s make a source file"
     echo "    -g build a debuggable binary file"
     echo "    -t test a build"
@@ -67,7 +67,7 @@ fi
 
 # build a new one or use the cache one
 CC="g++"
-CCFLAGS="-std=c++1y -I ${DIR} -I ${DIR}/include -I ."
+CCFLAGS="${CFLAGS} ${CPPFLAGS} -std=c++1y -I ${DIR} -I ${DIR}/include -I ${DIR}/../include -I ."
 if [ ${MAKE_A_DEBUG_BUILD} ]; then
     # build a build for debugging
     OUT="${TARGET}.build"
@@ -76,7 +76,7 @@ if [ ${MAKE_A_DEBUG_BUILD} ]; then
 elif [ ${TEST_BUILD} ]; then
     # only test a build to check compilable or not
     OUT="${TARGET}.test.build"
-    echo "${CC} ${CCFLAGS} \"${SRC}\" -o \"${OUT}\""
+    echo "${CC} ${CCFLAGS} ${LDFLAGS} \"${SRC}\" -o \"${OUT}\""
     ${CC} ${CCFLAGS} "${SRC}" -o "${OUT}"
     rm -f "${OUT}"
 
@@ -84,7 +84,7 @@ else
     # build a binary and execute it
     MD5=$(cat "${SRC}" | md5sum -b | awk '{print $1}')
     OUT="${BINCACHE}/${MD5}"
-    [ ! -x "${OUT}" ] && ${CC} ${CCFLAGS} -O3 "${SRC}" -o "${OUT}"
+    [ ! -x "${OUT}" ] && ${CC} ${CCFLAGS} ${LDFLAGS} -O3 "${SRC}" -o "${OUT}"
     rm -f ${SRC}
 
     # execute the binary
