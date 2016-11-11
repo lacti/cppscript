@@ -65,19 +65,26 @@ if [ ${MAKE_A_SOURCE} ]; then
     exit
 fi
 
+# find external headers and libraries
+EXTERNAL_INCLUDE_PATH=$(grep '^#pragma comment(path.inc' "${SRC}" | sed 's/.*"\([^"]*\)".*/-I \1/g' | xargs)
+EXTERNAL_LIBRARY_PATH=$(grep '^#pragma comment(path.lib' "${SRC}" | sed 's/.*"\([^"]*\)".*/-L \1/g' | xargs)
+EXTERNAL_LIBRARIES=$(grep '^#pragma comment(lib' "${SRC}" | sed 's/.*"\([^"]*\)".*/-l\1/g' | xargs)
+EXTERNAL_LD_LIBRARY_PATH=$(grep '^#pragma comment(path.lib' "${SRC}" | sed 's/.*"\([^"]*\)".*/\1/g' | xargs | sed -e 's/ /:/g')
+
 # build a new one or use the cache one
 CC="g++"
-CCFLAGS="${CFLAGS} ${CPPFLAGS} -std=c++1y -I ${DIR} -I ${DIR}/include -I ${DIR}/../include -I ."
+CCFLAGS="${CFLAGS} ${CPPFLAGS} -std=c++1y -I ${DIR} -I ${DIR}/include -I ${DIR}/../include -I . ${EXTERNAL_INCLUDE_PATH}"
+LDFLAGS="${LDFLAGS} ${EXTERNAL_LIBRARY_PATH}  ${EXTERNAL_LIBRARIES}"
 if [ ${MAKE_A_DEBUG_BUILD} ]; then
     # build a build for debugging
     OUT="${TARGET}.build"
-    ${CC} ${CCFLAGS} -g "${SRC}" -o "${OUT}"
+    ${CC} ${CCFLAGS} -g ${LDFLAGS} "${SRC}" -o "${OUT}"
 
 elif [ ${TEST_BUILD} ]; then
     # only test a build to check compilable or not
     OUT="${TARGET}.test.build"
     echo "${CC} ${CCFLAGS} ${LDFLAGS} \"${SRC}\" -o \"${OUT}\""
-    ${CC} ${CCFLAGS} "${SRC}" -o "${OUT}"
+    ${CC} ${CCFLAGS} ${LDFLAGS} "${SRC}" -o "${OUT}"
     rm -f "${OUT}"
 
 else
@@ -90,7 +97,6 @@ else
     # execute the binary
     if [ -x "${OUT}" ]; then
         shift
-        ${OUT} $@
+        LD_LIBRARY_PATH=${EXTERNAL_LD_LIBRARY_PATH}:${LD_LIBRARY_PATH} ${OUT} $@
     fi
 fi
-
