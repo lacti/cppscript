@@ -28,6 +28,8 @@ public:
 
     template <typename T>
     T next_field();
+    const char* next_all();
+    bool skip_field() { return move_next_field() != nullptr; }
     bool has_more_field() const { return *field_pos_ != 0; }
 
     std::size_t total_read() const { return total_read_; }
@@ -99,7 +101,7 @@ inline bool parser::next_line() {
 }
 
 inline bool parser::fill_file_buffer() {
-    if (std::feof(file_))
+    if (file_ == nullptr || std::feof(file_))
         return false;
 
     if (line_pos_ != nullptr && line_pos_ != file_buffer_) {
@@ -130,6 +132,10 @@ inline T parser::next_field() {
     assert(current != nullptr);
 
     return tsv::val<T>(current, tag<T>());
+}
+
+inline const char* parser::next_all() {
+    return field_pos_;
 }
 
 inline const char* parser::move_next_field() {
@@ -178,4 +184,3 @@ std::string val(const char* str, tag<std::string>) {
 }
 
 }
-
