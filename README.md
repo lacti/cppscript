@@ -3,7 +3,7 @@
 if you want to use c++ as a script, write a script file like this.
 
 ```
-#!/user/bin/env cppscript
+#!/usr/bin/env cppscript
 
 std::cout << "hello world! << std::endl;
 ```
